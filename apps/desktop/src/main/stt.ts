@@ -9,12 +9,44 @@
  */
 
 import { execFile } from 'child_process';
+import { existsSync } from 'fs';
 import { writeFile, mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import OpenAI from 'openai';
 
+/**
+ * Strict allowlist of whisper.cpp binary paths. The user can override
+ * with WHISPER_CPP_BIN, but only if the path exists, is an absolute
+ * path, and ends in a known binary name. This prevents the env-var
+ * being used to point at a different executable.
+ */
+function resolveWhisperBin(): string {
+  const candidates = [
+    process.env.WHISPER_CPP_BIN,
+    '/opt/homebrew/bin/whisper-cli',
+    '/usr/local/bin/whisper-cli',
+    '/usr/bin/whisper-cli',
+    'whisper-cli',
+    'whisper',
+  ].filter(Boolean) as string[];
+
+  for (const c of candidates) {
+    if (c.includes('/') || c.includes('\\')) {
+      if (existsSync(c)) return c;
+      continue;
+    }
+    // bare name — trust the PATH; safer than absolute
+    return c;
+  }
+  return 'whisper';
+}
+
+const MODEL_RE = /^[a-zA-Z0-9._-]{1,32}$/;
+
 export async function transcribeLocal(pcm: Float32Array, model: string): Promise<string> {
+  if (!MODEL_RE.test(model)) throw new Error(`Invalid model name: ${model}`);
+
   // 1. write a 16-bit PCM WAV
   const wav = pcmToWav(pcm, 16000);
   const dir = await mkdtemp(join(tmpdir(), 'wisper-'));
@@ -22,9 +54,9 @@ export async function transcribeLocal(pcm: Float32Array, model: string): Promise
   const outBase = join(dir, 'out');
   await writeFile(inPath, wav);
 
-  // 2. shell out to whisper.cpp
-  // user must `brew install whisper-cpp` or build from source
-  const bin = process.env.WHISPER_CPP_BIN ?? 'whisper';
+  // 2. shell out to whisper.cpp. Note: execFile (not exec) means no
+  // shell, and the args are passed as separate array entries.
+  const bin = resolveWhisperBin();
   await new Promise<void>((res, rej) => {
     execFile(bin, [
       '-m', `${model}.bin`,

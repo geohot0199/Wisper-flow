@@ -18,6 +18,8 @@ export class LLMClient {
       const url = provider === 'groq'
         ? 'https://api.groq.com/openai/v1/chat/completions'
         : 'https://api.openai.com/v1/chat/completions';
+      // defence in depth: assert https, even though the literals are already https
+      if (!url.startsWith('https://')) throw new Error('Refusing non-HTTPS LLM URL');
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
@@ -88,6 +90,7 @@ export class LLMClient {
     }
 
     if (provider === 'ollama') {
+      // Ollama runs on the user's own machine — cleartext to localhost is fine.
       const res = await fetch('http://localhost:11434/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

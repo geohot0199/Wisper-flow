@@ -22,7 +22,11 @@ struct DictateIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         // Bring the app to the foreground; main activity checks for the
         // "fromIntent" launch flag and jumps straight into record mode.
-        UIApplication.shared.open(URL(string: "wisperflow://dictate")!)
+        // The URL is a hardcoded constant — safe to unwrap.
+        guard let url = URL(string: "wisperflow://dictate") else {
+            return .result()
+        }
+        UIApplication.shared.open(url)
         return .result()
     }
 }

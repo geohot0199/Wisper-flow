@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Transport Security: HTTPS-only by default. -->
+    <!-- Cleartext is allowed only to localhost (Ollama local server). -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>localhost</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+
+    <!-- Microphone usage description (required for voice capture) -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Wisper Flow needs the microphone to transcribe your voice into refined prompts.</string>
+
+    <!-- Speech recognition usage description (for on-device dictation) -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Wisper Flow uses speech recognition to convert your voice into text before refining it.</string>
+</dict>
+</plist>
