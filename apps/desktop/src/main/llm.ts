@@ -52,9 +52,11 @@ export async function streamLLM(
   }
 
   if (cfg.provider === 'anthropic') {
+    // defence in depth: enforce HTTPS for cloud LLM endpoints
+    const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
     const sys = messages.find((m) => m.role === 'system')?.content ?? '';
     const userMsgs = messages.filter((m) => m.role !== 'system');
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(ANTHROPIC_URL, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',

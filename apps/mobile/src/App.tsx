@@ -21,7 +21,6 @@ export default function App() {
   const toggle = async () => {
     if (recording) { setRecording(false); return; }
     setRecording(true); setRaw(''); setRefined(null); setAnswer('');
-    // Start native audio capture; for brevity, we simulate via text input below.
   };
 
   // Live refine as user types or after STT finalizes
@@ -31,16 +30,22 @@ export default function App() {
 
   const sendToLLM = async () => {
     if (!refined) return;
+    if (!settings.apiKey && settings.provider !== 'ollama') {
+      setAnswer('No API key set. Open settings to add one.');
+      return;
+    }
     setAnswer('…thinking…');
-    const out = await llm.stream(settings, refined.refinedPrompt, (chunk) => {
-      setAnswer((a) => a === '…thinking…' ? chunk : a + chunk);
-    });
+    const out = await llm.stream(
+      { llm: { provider: settings.provider, model: settings.model, apiKey: settings.apiKey } },
+      refined.refinedPrompt,
+      (chunk) => { setAnswer((a) => a === '…thinking…' ? chunk : a + chunk); },
+    );
   };
 
   return (
     <ScrollView contentContainerStyle={s.root}>
       <Text style={s.title}>Wisper Flow</Text>
-      <Text style={s.sub}>{Platform.OS === 'ios' ? 'iOS' : 'Android'} · {settings.llm.provider}</Text>
+      <Text style={s.sub}>{Platform.OS === 'ios' ? 'iOS' : 'Android'} · {settings.provider}</Text>
 
       <View style={[s.mic, recording && s.micOn]}>
         <Pressable onPress={toggle} style={s.micBtn}>

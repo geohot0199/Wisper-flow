@@ -73,8 +73,7 @@ async function step(name: string, fn: () => void | Promise<void>) {
     if (r.refinedPrompt !== '') throw new Error('expected empty');
   });
 
-  await step('crypto: aes-gcm round-trip', async () => {
-    // dynamic import so the file works even if node_modules aren't ready
+  await step('crypto: aes-gcm round-trip (v1 with per-blob salt)', async () => {
     const path = await import('path');
     const fs = await import('fs');
     const { execSync } = await import('child_process');
@@ -85,7 +84,14 @@ async function step(name: string, fn: () => void | Promise<void>) {
       const enc = encryptKey('sk-test-123', fp);
       const dec = decryptKey(enc, fp);
       if (dec !== 'sk-test-123') throw new Error('round-trip failed');
-      if (!enc.startsWith('enc:')) throw new Error('missing enc: prefix');
+      if (!enc.startsWith('enc:v1:')) throw new Error('missing v1 prefix');
+      // also: encrypting twice should give different ciphertexts (random salt + IV)
+      const enc2 = encryptKey('sk-test-123', fp);
+      if (enc === enc2) throw new Error('encryption is deterministic — salt/IV not random');
+      // tampered ciphertext must fail to decrypt
+      let tampered = false;
+      try { decryptKey(enc.slice(0, -1) + 'A', fp); } catch { tampered = true; }
+      if (!tampered) throw new Error('tampered ciphertext was accepted');
     `);
     try {
       execSync(`npx tsx ${tmp}`, { stdio: 'pipe' });

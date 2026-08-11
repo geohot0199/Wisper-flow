@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network security policy.
+  By default: cleartext (HTTP) is FORBIDDEN. We allow cleartext only
+  to localhost (for Ollama) and 10.0.2.2 (Android emulator's host loopback).
+  Everything else requires HTTPS — preventing the API key from being
+  sent over an unencrypted connection by accident or attack.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

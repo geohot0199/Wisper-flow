@@ -130,8 +130,8 @@ function createTray() {
   tray = new Tray(img);
   tray.setToolTip('Wisper Flow');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Settings', click: () => shell.openExternal('http://localhost:4310/settings') },
-    { label: 'Toggle hotkey: ' + store.get('hotkey'), enabled: false },
+    { label: 'Settings', click: () => safeOpenExternal('http://localhost:4310/settings') },
+    { label: 'Toggle hotkey: ' + (() => { const hk = store.get('hotkey'); return typeof hk === 'string' ? hk.replace(/[\r\n]/g, '') : 'unknown'; })(), enabled: false },
     { type: 'separator' },
     { label: 'Quit Wisper Flow', click: () => app.quit() },
   ]));
@@ -144,9 +144,9 @@ function registerHotkey() {
   const hk = store.get('hotkey');
   try {
     globalShortcut.register(hk, () => toggleListening());
-    console.log('[hotkey] registered:', hk);
   } catch (e) {
-    console.error('[hotkey] failed to register', hk, e);
+    // don't log the hotkey string — it can be sensitive on shared systems
+    console.error('[hotkey] failed to register');
   }
 }
 
@@ -235,37 +235,140 @@ async function handleTranscript(raw: string) {
 
 // ─── IPC: settings from renderer ─────────────────────────────────────────
 
+/**
+ * Allowlist + type validator for IPC `config:set`. Anything that doesn't
+ * match is silently dropped. This is the ONLY way renderer-side code can
+ * influence config — preventing a renderer XSS or compromised renderer
+ * dep from overwriting arbitrary keys or injecting a malicious hotkey.
+ */
+const CONFIG_KEYS = {
+  hotkey: 'string',
+  mode: 'string', // validated against enum below
+  codingMode: 'boolean',
+  language: 'string?',
+  maxTokens: 'number',
+  wakeWord: 'boolean',
+  autoInject: 'boolean',
+  stt: 'object',
+  llm: 'object',
+} as const;
+
+const MODE_VALUES = new Set(['auto', 'general', 'code', 'email', 'note', 'shell']);
+const PROVIDER_VALUES = new Set(['openai', 'anthropic', 'groq', 'ollama', 'local']);
+const STT_PROVIDER_VALUES = new Set(['openai', 'local']);
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function validateConfig(partial: unknown): Partial<AppConfig> | null {
+  if (!isPlainObject(partial)) return null;
+  // Use null-prototype object so __proto__/constructor can't pollute.
+  const out: any = Object.create(null);
+  for (const [k, v] of Object.entries(partial)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+    if (!(k in CONFIG_KEYS)) continue; // unknown key — drop
+    const expected = (CONFIG_KEYS as any)[k];
+    if (expected === 'string' && typeof v !== 'string') continue;
+    if (expected === 'string?' && v !== null && typeof v !== 'string') continue;
+    if (expected === 'boolean' && typeof v !== 'boolean') continue;
+    if (expected === 'number' && (typeof v !== 'number' || !Number.isFinite(v))) continue;
+    if (expected === 'object' && !isPlainObject(v)) continue;
+    // domain-level validation
+    if (k === 'mode' && !MODE_VALUES.has(v as string)) continue;
+    if (k === 'maxTokens' && ((v as number) < 64 || (v as number) > 128_000)) continue;
+    if (k === 'hotkey' && (v as string).length > 64) continue;
+    if (k === 'stt' && isPlainObject(v)) {
+      const s: any = {};
+      if ('provider' in v && typeof v.provider === 'string' && STT_PROVIDER_VALUES.has(v.provider)) s.provider = v.provider;
+      if ('model' in v && typeof v.model === 'string' && v.model.length < 64 && /^[a-zA-Z0-9._-]+$/.test(v.model)) s.model = v.model;
+      if (Object.keys(s).length) out.stt = s;
+      continue;
+    }
+    if (k === 'llm' && isPlainObject(v)) {
+      const l: any = {};
+      if ('provider' in v && typeof v.provider === 'string' && PROVIDER_VALUES.has(v.provider)) l.provider = v.provider;
+      if ('model' in v && typeof v.model === 'string' && v.model.length < 64 && /^[a-zA-Z0-9._-]+$/.test(v.model)) l.model = v.model;
+      if ('apiKey' in v && typeof v.apiKey === 'string' && v.apiKey.length < 512 && v.apiKey !== '••••••••') {
+        l.apiKey = v.apiKey;
+      }
+      if (Object.keys(l).length) out.llm = l;
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Allowlisted external URLs only. Prevents `javascript:`, `file://`,
+ * or `ms-cxh:` from being opened if any config value ever flows here.
+ */
+function safeOpenExternal(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    if (u.host !== 'localhost' && u.host !== '127.0.0.1') return false;
+    return shell.openExternal(url);
+  } catch {
+    return false;
+  }
+}
+
 ipcMain.handle('config:get', () => {
   const all = { ...DEFAULTS, ...store.store };
   const sanitized = { ...all, llm: { ...all.llm, apiKey: all.llm.apiKey ? '••••••••' : '' } };
   return sanitized;
 });
 
-ipcMain.handle('config:set', (_e: unknown, partial: Partial<AppConfig>) => {
-  for (const [k, v] of Object.entries(partial)) {
-    if (k === 'llm' && (v as any).apiKey && (v as any).apiKey !== '••••••••') {
+ipcMain.handle('config:set', (_e: unknown, partial: unknown) => {
+  const clean = validateConfig(partial);
+  if (!clean) return false;
+  for (const [k, v] of Object.entries(clean)) {
+    if (k === 'llm' && (v as any).apiKey) {
       const enc = encryptKey((v as any).apiKey, getMachineFingerprint());
       store.set('llm.apiKey', enc);
-      store.set('llm.provider', (v as any).provider);
-      store.set('llm.model', (v as any).model);
+      if ((v as any).provider) store.set('llm.provider', (v as any).provider);
+      if ((v as any).model) store.set('llm.model', (v as any).model);
     } else {
       store.set(k as any, v as any);
     }
   }
-  if (partial.hotkey) {
+  if (clean.hotkey) {
     globalShortcut.unregisterAll();
     registerHotkey();
   }
   return true;
 });
 
-ipcMain.handle('refine:test', (_e: unknown, text: string) => refine(text, { mode: 'auto' }));
+ipcMain.handle('refine:test', (_e: unknown, text: unknown) => {
+  // Bound input size — a malicious renderer can't make us run huge regex
+  if (typeof text !== 'string' || text.length > 10_000) return null;
+  return refine(text, { mode: 'auto' });
+});
 
 function getMachineFingerprint(): string {
   const p = path.join(app.getPath('userData'), '.fp');
-  if (fs.existsSync(p)) return fs.readFileSync(p, 'utf-8');
+  if (fs.existsSync(p)) {
+    // On Windows, NTFS ignores POSIX mode bits, so we additionally try
+    // to ACL the file to the current user. On macOS/Linux the 0o600
+    // mode bit is sufficient.
+    if (process.platform === 'win32') {
+      try {
+        const { execSync } = require('child_process');
+        execSync(`icacls "${p}" /inheritance:r /grant:r "%USERNAME%:(R,W)" /C /Q`, { stdio: 'ignore', windowsHide: true });
+      } catch { /* best-effort */ }
+    }
+    return fs.readFileSync(p, 'utf-8');
+  }
   const fp = require('crypto').randomBytes(32).toString('hex');
   fs.writeFileSync(p, fp, { mode: 0o600 });
+  if (process.platform === 'win32') {
+    try {
+      const { execSync } = require('child_process');
+      execSync(`icacls "${p}" /inheritance:r /grant:r "%USERNAME%:(R,W)" /C /Q`, { stdio: 'ignore', windowsHide: true });
+    } catch { /* best-effort */ }
+  }
   return fp;
 }
 

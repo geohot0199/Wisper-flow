@@ -276,8 +276,24 @@ export interface RefineResult {
  * The single entry point used by both the desktop tray app and the
  * mobile keyboard. Given a raw STT transcript, returns an LLM-ready prompt.
  */
+export const MAX_INPUT_LENGTH = 50_000; // ~12 500 tokens — far above any real dictation
+
 export function refine(input: string, opts: RefineOptions = {}): RefineResult {
-  const original = input ?? '';
+  // Cap input size. A misbehaving caller (e.g. a runaway audio buffer
+  // serialised as text) can't make us run huge regex passes.
+  const original = (input ?? '').slice(0, MAX_INPUT_LENGTH);
+  if (!original) {
+    return {
+      original: '',
+      cleaned: '',
+      mode: 'general',
+      language: null,
+      refinedPrompt: '',
+      estimatedTokens: 0,
+      confidence: 0,
+      signals: [],
+    };
+  }
   const cleaned = stripFiller(original);
 
   const detectedMode = classifyIntent(cleaned);
