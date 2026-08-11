@@ -1,0 +1,23 @@
+{
+  "name": "@wisper-flow/refinement",
+  "version": "0.1.0",
+  "description": "Prompt refinement engine — filler strip, intent classify, code reframe",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --import tsx test/*.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "@types/node": "^20.0.0"
+  }
+}
