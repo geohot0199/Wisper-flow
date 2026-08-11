@@ -1,0 +1,37 @@
+{
+  "name": "@wisper-flow/desktop",
+  "version": "0.1.0",
+  "description": "Wisper Flow desktop app — global hotkey, voice → refined prompt → types into any app",
+  "main": "dist/main/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dev": "tsc -p tsconfig.json -w & electron .",
+    "test": "node --test --import tsx test/*.test.ts",
+    "package:win": "electron-builder --win",
+    "package:mac": "electron-builder --mac",
+    "package:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "@wisper-flow/refinement": "file:../../packages/refinement"
+  },
+  "optionalDependencies": {
+    "electron-store": "^8.2.0",
+    "openai": "^4.55.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  },
+  "//": "electron + electron-builder are required only for `npm start` and `npm run package:*`. They are NOT needed for `npm test` (which uses the smoke + refinement + pipeline tests).",
+  "build": {
+    "appId": "com.wisperflow.app",
+    "productName": "Wisper Flow",
+    "files": ["dist/**/*", "package.json"],
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg" },
+    "linux": { "target": "AppImage" }
+  }
+}

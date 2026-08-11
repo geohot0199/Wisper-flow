@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Wisper Flow — Settings</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="settings">
+    <main>
+      <h1>Wisper Flow <span class="ver">v0.1</span></h1>
+      <p class="sub">Voice → refined prompt → types into any app.</p>
+
+      <section>
+        <h2>LLM Provider</h2>
+        <label>Provider
+          <select id="llm-provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="groq">Groq</option>
+            <option value="ollama">Ollama (local)</option>
+          </select>
+        </label>
+        <label>Model
+          <input id="llm-model" type="text" placeholder="gpt-4o-mini" />
+        </label>
+        <label>API Key
+          <input id="llm-key" type="password" placeholder="sk-…" />
+        </label>
+      </section>
+
+      <section>
+        <h2>Speech-to-Text</h2>
+        <label>Provider
+          <select id="stt-provider">
+            <option value="local">Local (whisper.cpp)</option>
+            <option value="openai">OpenAI Whisper</option>
+          </select>
+        </label>
+        <label>Model
+          <input id="stt-model" type="text" placeholder="base.en" />
+        </label>
+      </section>
+
+      <section>
+        <h2>Behavior</h2>
+        <label>Hotkey
+          <input id="hotkey" type="text" placeholder="CommandOrControl+Shift+Space" />
+        </label>
+        <label>Default Mode
+          <select id="mode">
+            <option value="auto">Auto-detect</option>
+            <option value="general">General</option>
+            <option value="code">Coding</option>
+            <option value="email">Email</option>
+            <option value="note">Note</option>
+            <option value="shell">Shell</option>
+          </select>
+        </label>
+        <label class="check">
+          <input id="coding-mode" type="checkbox" /> Force coding mode (always inject SE framing)
+        </label>
+        <label class="check">
+          <input id="auto-inject" type="checkbox" /> Auto-inject LLM answer into focused app
+        </label>
+        <label>Max tokens
+          <input id="max-tokens" type="number" value="2048" min="256" max="32000" />
+        </label>
+      </section>
+
+      <section>
+        <h2>Test the Refinement Engine</h2>
+        <textarea id="test-input" rows="4" placeholder="um so like I want to write a python function that umm reverses a string"></textarea>
+        <button id="test-btn">Refine</button>
+        <pre id="test-output"></pre>
+      </section>
+
+      <button id="save" class="primary">Save Settings</button>
+      <p id="status" class="status"></p>
+    </main>
+    <script src="./settings.js" type="module"></script>
+  </body>
+</html>
